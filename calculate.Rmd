@@ -1,0 +1,112 @@
+---
+title: "Calculation"
+author: "Hongjin Ren"
+date: "2022/3/15"
+output: pdf_document
+---
+
+```{r libraries,warning=FALSE}
+library(tidyverse)
+library(moderndive)
+library(skimr)
+library(kableExtra)
+library(gridExtra)
+library(broom)
+library(olsrr)
+library(gapminder)
+library(stats)
+library(janitor)
+```
+
+```{r}
+CASH <- read_csv("D:/glasgow/friendwork/datali/CASH.csv")
+BOND <- read_csv("D:/glasgow/friendwork/datali/BOND.csv")
+EQUITY <- read_csv("D:/glasgow/friendwork/datali/EQUITY.csv")
+```
+
+```{r}
+CASH_tidy <- gather(data = CASH, 
+                    key = year,
+                    value = CashTotalReturnIndex,
+                    - c("Trial" : "0")) %>%
+  select(-c("Parameter","0"))
+
+
+
+BOND_tidy <- gather(data = BOND, 
+                    key = year,
+                    value = BondTotalReturnIndex,
+                    - c("Trial" : "0")) %>%
+  select(-c("Parameter","0"))
+
+EQUITY_tidy <- gather(data = EQUITY, 
+                    key = year,
+                    value = EquityTotalReturnIndex,
+                    - c("Trial" : "0")) %>%
+  select(-c("Parameter","0"))
+```
+
+```{r}
+data_joined <- CASH_tidy %>%
+  inner_join(BOND_tidy, by = c("Trial", "year")) %>%
+  inner_join(EQUITY_tidy, by = c("Trial", "year"))
+
+```
+
+#Calculation
+
+```{r}
+Initial <- 3000
+```
+
+
+```{r}
+data_pre <- data_joined %>%
+  mutate(Equity_payoff = Initial*EquityTotalReturnIndex) %>%
+  mutate(Discount_factor = 1/CashTotalReturnIndex)
+
+```
+
+mutate(Bond_discount_payoff = 15000*CashTotalReturnIndex/BondTotalReturnIndex)#bond only year15
+
+```{r}
+BT_15 <- data_pre %>%
+  select(Trial,year,BondTotalReturnIndex) %>%
+  filter(year == "15") %>%
+  select(BondTotalReturnIndex)
+BT_15 <- t(as.vector(BT_15))
+BT_15 <- data.frame(BT_15 = rep(BT_15,each = 15))
+
+
+data_pre <- cbind(data_pre,BT_15) %>%
+  mutate(Bond_discount_payoff = 15000*BondTotalReturnIndex/BT_15) %>%
+  select(-BT_15)
+
+data_pre$Bond_discount_payoff[data_pre$year == "15"] <- data_pre$Bond_discount_payoff[data_pre$year == "15"] / data_pre$CashTotalReturnIndex[data_pre$year == "15"]
+  
+```
+
+
+
+```{r}
+data_final <- data_pre %>%
+  mutate(Equity_discount_payoff = Equity_payoff * Discount_factor) %>%
+  rowwise() %>%
+  mutate(Calloption_payoff = max(0,(Equity_payoff-3500))) %>%
+  mutate(Putoption_payoff = max(0,(2500-Equity_payoff))) %>%
+  ungroup() %>%
+  mutate(C_dis_pf = Calloption_payoff * Discount_factor) %>%
+  mutate(P_dis_pf = Putoption_payoff * Discount_factor) %>%
+  mutate(Portfolio_value = C_dis_pf + P_dis_pf + Bond_discount_payoff)
+```
+
+mutate(Ant = ifelse(Trial%%2 == 1,mean()))
+
+```{r}
+data_final %>%
+  filter(year == "15")
+
+```
+
+# add a ...
+
